@@ -1,6 +1,9 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
-from app.groww.client import groww
+from app.assets.registry import get_asset
+from app.options.service import OptionService
+from app.options.parser import OptionParser
+from app.optionchain.service import OptionChainService
 
 router = APIRouter(
     prefix="/optionchain",
@@ -10,18 +13,30 @@ router = APIRouter(
 
 @router.get("/{symbol}")
 def option_chain(symbol: str):
-
     try:
-        groww.client
+        asset = get_asset(symbol)
 
-        return {
-            "authenticated": True
-        }
+        expiry, raw = OptionService.get_first_working_chain(asset)
+
+        chain = OptionParser.parse(
+            raw,
+            asset.trading_symbol,
+            expiry,
+        )
+
+        print("=" * 60)
+        print(f"Expiry: {expiry}")
+        print(f"Spot Price: {chain.spot_price}")
+        print(f"Parsed strikes: {len(chain.strikes)}")
+        print("=" * 60)
+
+        return OptionChainService.build(chain)
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
 
-        return {
-            "authenticated": False,
-            "error": str(e),
-            "type": type(e).__name__,
-        }
+        raise HTTPException(
+            status_code=500,
+            detail=str(e),
+        )
